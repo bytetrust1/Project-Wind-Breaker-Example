@@ -13,7 +13,7 @@ local Classes = ReplicatedStorage.StoragePackage.Classes -- Place where all the 
 local SkillService = Knit.CreateService({
     Name = "SkillService", -- Creating the Service using Knit
 	Client = {
-		Replicate = Knit.CreateSignal(), -- Signal to replicate VFX and other stuff for near by clients
+		Replicate = Knit.CreateSignal(), -- Signal to replicate VFX and other stuff
 		ReplicateEnd = Knit.CreateSignal(), -- Signal to destroy VFX or other stuff
 		Event = Knit.CreateSignal(), -- Signal for custom events fired by the Skill Classes
 	},
@@ -93,84 +93,76 @@ function SkillService:Start(Players : {Player})
 	
 	self.State = "Active" -- Change the State to Active
 	
-	self.FramesObject = self.ActualSkill.StartServer(self.libs) -- 
-	self.Wraper:SetActiveSkill(self.Name, true)
+	self.FramesObject = self.ActualSkill.StartServer(self.libs) -- Starting the ServerStart method in the Skill Class Module
+	self.Wraper:SetActiveSkill(self.Name, true) -- Setting the Active skill in the wraper
 	
-	self:_ArmRelease()
+	self:_ArmRelease() -- Release all other skills attached to the character
 	
-	for _,v in Players do
-		self.Client.Replicate:Fire(v, self.Character, self.Name)
+	local Root = self.Character and self.Character:FindFirstChild("HumanoidRootPart") -- Gets the HumanoidRootPart of the character
+	if not Root then return end -- Check if it exist
+	
+	for _,v in VLD.Players:GetPlayersInRange(Root, 1000) do -- Used a function in my Module set to get all the players near by
+		self.Client.Replicate:Fire(v, self.Character, self.Name) -- Fire the Replicate function on each player
 	end
 end
 
---// A move hands itself back by calling Stop at the end of its frame chain. Those frames run
---// as promises, so anything that throws on the way there -- an Animation with no asset id, a
---// hitbox that errors, the character being replaced mid-move -- rejects quietly and Stop is
---// never reached. Without this the skill sits Active for the rest of the round, and because
---// it still holds ActiveSkill it takes every other skill on the character down with it: one
---// use and nothing works again, cooldown or no cooldown.
 function SkillService:_ArmRelease()
-	--// only the moves. Block and the other held skills stay Active by design.
-	if Classes.Skills:FindFirstChild(self.Name, true).Parent ~= Moves then return end
+	if Classes.Skills:FindFirstChild(self.Name, true).Parent ~= Moves then return end -- Check if the Skill is a move type, Skills like Block and other held skills are not effected by this
 	
-	self._trove:AddPromise(Promise.delay(10):andThen(function()
-		if self.Wraper.ActiveSkill ~= self.Name then return end
+	self._trove:AddPromise(Promise.delay(10):andThen(function() -- Making a promise to delay 10 seconds
+		if self.Wraper.ActiveSkill ~= self.Name then return end -- Check if the skill is still active
 		
-		warn("[SkillService] "..self.Name.." skill never stoped on it's own... Promise error above.")
-		self:Stop()
+		warn("[SkillService] "..self.Name.." skill never stoped on it's own... Promise error above.") -- Warn that the skill never stoped
+		self:Stop() -- Stops the skill
 	end))
 end
 
 function SkillService:Stop()
-	if not (self.State == "Cooldown") then
-		self.State = "Idle"
+	if not (self.State == "Cooldown") then -- Checking if the Skill is not on cooldown
+		self.State = "Idle" -- if so I set the State to Idle
 	end
 	
-	if self.FramesObject then
-		self.FramesObject:Destroy()
-		self.FramesObject = nil
+	if self.FramesObject then -- Check if the skill still exist
+		self.FramesObject:Destroy() -- Destroy it
+		self.FramesObject = nil -- Setting it to nil
 	end
 	
-	--// Handing the character back comes first and unconditionally. This used to sit at the
-	--// bottom, below a loop that indexes HumanoidRootPart -- so a character that died or
-	--// respawned mid-move threw on the way past and never got released, and ActiveSkill
-	--// stayed set for good.
-	self.Wraper:SetActiveSkill(self.Name, false)
+	self.Wraper:SetActiveSkill(self.Name, false) -- Setting the active skill of the Character Wraper to nil
 	
-	local Root = self.Character and self.Character:FindFirstChild("HumanoidRootPart")
-	if not Root then return end
+	local Root = self.Character and self.Character:FindFirstChild("HumanoidRootPart") -- Gets the HumanoidRootPart of the character
+	if not Root then return end -- Check if it exist
 	
-	for _,v in VLD.Players:GetPlayersInRange(Root, 1000) do
-		self.Client.ReplicateEnd:Fire(v, self.Character, self.Name)
+	for _,v in VLD.Players:GetPlayersInRange(Root, 1000) do -- Used a function in my Module set to get all the players near by
+		self.Client.ReplicateEnd:Fire(v, self.Character, self.Name) -- Fire the ReplicateEnd Signal on each player
 	end
 end
 
 function SkillService:ApplyCooldown(Duration : number)
-	if not Duration then return end
+	if not Duration then return end -- Checking if Duration exist
 	
-	self.State = "Cooldown"
-	self._trove:AddPromise(Promise.delay(Duration):andThen(function()
-		self.State = "Idle"
+	self.State = "Cooldown" -- Setting the state
+	self._trove:AddPromise(Promise.delay(Duration):andThen(function() -- Creating a Promise to wait the duration
+		self.State = "Idle" -- Setting the state back to idle
 	end))
 end
 
 function SkillService:FireClient(Params : {any}?)
-	local Players = VLD.Players:GetPlayersInRange(self.Character.HumanoidRootPart, 1000)
+	local Players = VLD.Players:GetPlayersInRange(self.Character.HumanoidRootPart, 1000) -- Getting all the player near by
 	for _,v in Players do
-		self.Client.Event:Fire(v, self.Character, self.Name, Params)
+		self.Client.Event:Fire(v, self.Character, self.Name, Params) -- Firing Event signal on each of them
 	end
 end
 
 function SkillService:UpdateCharacter(Character : Model)
-	if not Character then return end
+	if not Character then return end -- Checking if the character is provided
 	
-	self.Character = Character
-	self.Wraper = self.Services.CharacterService:GetCharacter(self.Character)
+	self.Character = Character -- Setting the Character variable
+	self.Wraper = self.Services.CharacterService:GetCharacter(self.Character) -- Getting the Character Wraper and setting it as the wraper
 	
-	self.libs.Character = self.Character
-	self.libs.Wraper = self.Wraper
+	self.libs.Character = self.Character -- Changing the libs Dictionary to match the updated character
+	self.libs.Wraper = self.Wraper -- Same as above but with the wraper
 	
-	self.Wraper:AddSkill(self.Name, self)
+	self.Wraper:AddSkill(self.Name, self) -- Adding the skill to the new character Wraper
 end
 
 function SkillService:Destroy()
