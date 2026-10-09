@@ -166,40 +166,40 @@ function SkillService:UpdateCharacter(Character : Model)
 end
 
 function SkillService:Destroy()
-	self.Wraper:RemoveSkill(self.Name)
+	self.Wraper:RemoveSkill(self.Name) -- Remove the skill from the character wraper
 
-	self.State = "Idle"
+	self.State = "Idle" -- Setting the state to Idle
 
-	if self.FramesObject then
-		self.FramesObject:Destroy()
+	if self.FramesObject then -- Check if the skill class exist
+		self.FramesObject:Destroy() -- If so destroy it
 	end
 
-	self._trove:Clean()
+	self._trove:Clean() -- Cleans the trove to disconnect all the connections
 
-	if SkillService.Skills[self.Character] then
-		SkillService.Skills[self.Character][self.Name] = nil
-		if not next(SkillService.Skills[self.Character]) then
-			SkillService.Skills[self.Character] = nil
+	if SkillService.Skills[self.Character] then -- Checks if the Character is in the Skills dictionary
+		SkillService.Skills[self.Character][self.Name] = nil -- if so set the Skill to nil inside the character
+		if not next(SkillService.Skills[self.Character]) then -- check if the Character dictionary is empty
+			SkillService.Skills[self.Character] = nil -- if so set the whole thing to nil
 		end
 	end
 end
 
 function SkillService:AddMoveset(Moveset : {}, Character : Model)
-	for _,v in Moveset do
-		SkillService.new({Character = Character, SkillName = v})
+	for _,v in Moveset do -- loop though all the moves in the moveset
+		SkillService.new({Character = Character, SkillName = v}) -- Adding all the Skills in the moveset to the character
 	end
 end
 
 function SkillService:OnCharacterInit(Character : Model)
-	if SkillService.Skills[Character] then
-		for _,v in SkillService.Skills[Character] do
-			v:UpdateCharacter(Character)
+	if SkillService.Skills[Character] then -- Check for the character model in the Skills dictionary
+		for _,v in SkillService.Skills[Character] do -- Looping though all the Skills under the character
+			v:UpdateCharacter(Character) -- Updating the character with the new character
 		end
 	end
 end
 
 function SkillService:KnitStart()
-	self.Services = Knit.GetServices()
+	self.Services = Knit.GetServices() -- Getting all the Services using Knit
 end
 
-return SkillService
+return SkillService -- Returning the module
